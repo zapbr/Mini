@@ -1,46 +1,4 @@
-; CONSTS/VARS
-L_byte         = $0000
-H_byte         = $0001
-SpriteRAM = $0200
-NumberOfSprites = $00
-Pressing = $01
-IsWalking = $02
-WalkingFr = $03
-WalkingCt = $04
-IsJumping = $05
-JumpingCt = $06
-IsFalling = $07
-
-;NameTable = $FF
-
-
-TotalSprites = 1
-WalkCycleWaitAmount = 5   ; Waiting 3 frames before walk cycle change
-ground = #$80
-
-
-PlayerTile EQU SpriteRAM+1
-PlayerAttr EQU SpriteRAM+2
-PlayerXPos EQU SpriteRAM+3
-PlayerYPos EQU SpriteRAM
-
-;==============================iNES Header===========================
-
-	.ORG $7ff0
-Header:                        ; 16 byte .NES header (iNES format)	
-	.DB "NES", $1a
-	.DB $02                    ; 32Kb PRG (2x 16KB Banks)
-	.DB $01                    ; 8KB CHR (1x 8KB banks)
-	.DB $01                    ; mapper 0 NROM
-	.DB $00                    ; mapper 0
-	.DB $00
-	.DB $00
-	.DB $00
-	.DB $00
-	.DB $00
-	.DB $00
-	.DB $00
-	.DB $00
+include "header.asm"
 
 ;--------------------------------------------------------------------
 	.org $C000            ; Start of code
@@ -81,36 +39,6 @@ vblankwait2:
   bpl vblankwait2
 
 ;-------------------------- Setup ---------------------------
-; LoadPallets:
-; 	LDA $2002             ; read PPU status to reset the high/low latch
-; 	LDA #$3F             ; Telling the ppu we want to write to $3F00
-; 	STA $2006            ; $3F00 is where the paletteles live
-; 	LDX #$00
-; 	STX $2006
-; 	LDX #$00              ; start out at 0
-; PalLoop:
-; 	LDA Palettes, x       ; Loading colors
-; 	STA $2007             ; Storing them to $3F00 through port $2007
-; 	INX                   ; Incremnt X counter
-; 	CPX #$20              ; Write 32 times
-; 	BNE PalLoop
-; 	LDX #$00
-
-; LoadSprites:
-; 	LDA #TotalSprites    ;loading number of sprites
-; 	ASL                  ; Multiply by four
-; 	ASL
-; 	STA NumberOfSprites
-; 	LDX #$00             ; Init Index
-
-; SpriteLoop:
-; 	LDA Sprites, x
-; 	STA SpriteRAM, x
-; 	INX
-; 	; CPX NumberOfSprites
-; 	CPX #$10
-; 	BNE SpriteLoop
-
 
 LoadPalettes:
   LDA $2002             ; read PPU status to reset the high/low latch
@@ -132,26 +60,39 @@ LoadPalettesLoop:
                         ; if compare was equal to 32, keep going down
 
 
-LoadSprites:
-  LDX #$00              ; start at 0
-LoadSpritesLoop:
-  LDA Sprites, x        ; load data from address (sprites +  x)
-  STA $0200, x          ; store into RAM address ($0200 + x)
-  INX                   ; X = X + 1
-  CPX #$10              ; Compare X to hex $10, decimal 16
-  BNE LoadSpritesLoop   ; Branch to LoadSpritesLoop if compare was Not Equal to zero
-                        ; if compare was equal to 16, keep going down
+; LoadSprites:
+;   LDX #$00              ; start at 0
+; LoadSpritesLoop:
+;   LDA Sprites, x        ; load data from address (sprites +  x)
+;   STA $0200, x          ; store into RAM address ($0200 + x)
+;   INX                   ; X = X + 1
+;   CPX #$10              ; Compare X to hex $10, decimal 16
+;   BNE LoadSpritesLoop   ; Branch to LoadSpritesLoop if compare was Not Equal to zero
+;                         ; if compare was equal to 16, keep going down
 
 
-;Name table + Attribute
+LoadSprites: 
+	LDA #TotalSprites    ;loading number of sprites
+	ASL                  ; Multiply by four 
+	ASL 
+	STA NumberOfSprites
+	LDX #$00             ; Init Index 
+SpriteLoop:
+	LDA Sprites, x
+	STA SpriteRAM, x
+	INX
+	CPX NumberOfSprites
+	BNE SpriteLoop
+
+background_start: 		;Name table + Attribute
    LDA $2002
    LDA #$20
    STA $2006
    LDA #$00
    STA $2006
-   LDA #<bg_nam
+   LDA #<bg_start
    STA L_byte
-   LDA #>bg_nam
+   LDA #>bg_start
    STA H_byte
    LDX #$00
    LDY #$00
@@ -176,7 +117,6 @@ nam_loop:
 
 ; ----- START VIDEO
 	LDA #%10010000       ; Turning on NMI interupt / Setting Display Nametable 10001000
-	;ORA NameTable
 	STA $2000
 	LDA #%00011110       ; Turning on the screen 00010000
 	STA $2001
@@ -192,7 +132,6 @@ Forever:
 UpdateSprites:
 	LDA #$00
 	STA $2003
-	;LDA #>SpriteRAM
 	LDA #$02
 	STA $4014
 	RTS
@@ -217,8 +156,13 @@ CheckRight:
 CheckLeft:
 	LDA #%01000000
 	AND Pressing 
-	BEQ CheckShoot
+	BEQ CheckStart
 	JSR MovePlayerLeft
+CheckStart:
+	LDA #%00001000
+	AND Pressing 
+	BEQ CheckShoot
+	JSR StartGame	
 CheckShoot:
 	LDA #%00000001
 	AND Pressing 
@@ -232,6 +176,44 @@ CheckJump:
 EndController:
 	RTS 
 
+
+StartGame:
+	LDA IsStarted
+	BNE exitStarted
+	LDA #$00
+	STA $2000
+	STA $2001
+	; unload bg
+	LDA $2002
+	LDA #$20
+	STA $2006
+	LDA #$00
+	STA $2006
+	LDA #<bg_stage
+	STA L_byte
+	LDA #>bg_stage
+	STA H_byte
+	LDX #$00
+	LDY #$00
+nambg_loop:
+	LDA ($00), Y
+	STA $2007
+	INY
+	CPY #$00
+	BNE nambg_loop
+	INC H_byte
+	INX
+	CPX #$04
+	BNE nambg_loop
+	; load new bg
+	LDA #%10010000       ; Turning on NMI interupt / Setting Display Nametable 10001000
+	STA $2000
+	LDA #%00011110       ; Turning on the screen 00010000
+	STA $2001
+	LDA #$01
+	STA IsStarted
+exitStarted:		
+	RTS
 
 MovePlayerRight:
 	LDA #%00000000
@@ -319,7 +301,7 @@ JumpCycle:
 -- 
 	LDA PlayerYPos 	; meanwhile do things
 	SEC
-	SBC #4+JumpingCt
+	SBC #3+JumpingCt
 	STA PlayerYPos
 -
 	INC JumpingCt
@@ -328,49 +310,61 @@ JumpCycle:
 Gravity:
 	LDA PlayerYPos
     CMP #$80
-    BCS +
-	LDA PlayerYPos
+	BCS great80
 	CLC
 	ADC #3
 	STA PlayerYPos
-+
 	RTS
+great80:
+	LDA #$80
+	STA PlayerYPos
+	RTS
+
+;   BCS +
+; 	LDA PlayerYPos
+; 	CLC
+; 	ADC #3
+; 	STA PlayerYPos
+; +
+; 	LDA PlayerYPos
+;     CMP #$80
+; 	BCS +	
+; 	LDA #$80
+; 	STA PlayerYPos
+; +	
+; 	RTS
 
 ;---------------------------Interupts----------------------
 
 NMI:
+	LDA IsStarted
+	BEQ +
     JSR UpdateSprites    ; Update once a frame
-	JSR CheckController
 	JSR WalkCycle
 	JSR JumpCycle
 	JSR Gravity
++
+	JSR CheckController
 	RTI
 
 ;------------------------RESOURCES-----------------
 	.org $E000 ; RESOURCES
 
 Palettes:
-  .db $22,$14,$1A,$0F, $22,$36,$17,$0F, $22,$1A,$3B,$0F, $22,$27,$17,$0F   ;;background palette
+  .db $0f,$27,$17,$0F, $0f,$01,$21,$31, $0f,$06,$16,$26, $0f,$09,$19,$29   ;;background palette
 
-  .db $0f, $05, $0D, $30, $0f, $19, $0D, $30, $0f, $11, $0D, $30, $0f, $00, $0D, $30  ;;sprite palette
-	; ; Background Palette
-	; .byte $09, $13, $23, $33
-	; .byte $09, $13, $23, $33
-	; .byte $09, $13, $23, $33
-	; .byte $09, $13, $23, $33
-
-	; ; Sprite Palette
-	; .byte $0f, $05, $0D, $30
-	; .byte $0f, $19, $0D, $30
-	; .byte $0f, $11, $0D, $30
-	; .byte $0f, $00, $0D, $30
+  .db $0f,$05,$0D,$30, $0f,$10,$00,$30, $0f,$11,$0D,$30, $0f,$00,$0D,$30  ;;sprite palette
 
 
 Sprites:;y  til att  x       FlipV FlipH Priority x x x pal pal
-	; .db $FE,$FE,$FE,$FE        ; ZeroSprite
+	.db $FE,$FE,$FE,$FE        ; ZeroSprite
 	.db $80,$00,%00000000,$08  ; Player Sprite
+	.db $80,$10,%01000001,$80  ; ENEMY Sprite
 
-bg_nam:
+bg_start:
+  .incbin "start.nam"
+
+bg_stage:
   .incbin "backgroundmini.nam"
 
 ;-----------------------------VECTORS---------------------------
