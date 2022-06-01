@@ -11,19 +11,31 @@ IsJumping = $05
 JumpingCt = $06
 IsFalling = $07
 IsStarted = $08
+EnemyCT = $09
+
+
 
 ;NameTable = $FF
 
+; 10000011
+; 00000000
 
 TotalSprites = 3
 WalkCycleWaitAmount = 5   ; Waiting 3 frames before walk cycle change
 ground = #$80
+jmpfactor = #%00000000
 
 
 PlayerYPos EQU SpriteRAM+4
 PlayerTile EQU SpriteRAM+5
 PlayerAttr EQU SpriteRAM+6
 PlayerXPos EQU SpriteRAM+7
+
+EnemyYPos EQU SpriteRAM+8
+EnemyTile EQU SpriteRAM+9
+EnemyAttr EQU SpriteRAM+10
+EnemyXPos EQU SpriteRAM+11
+
 
 
 ;==============================iNES Header===========================

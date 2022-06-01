@@ -60,17 +60,6 @@ LoadPalettesLoop:
                         ; if compare was equal to 32, keep going down
 
 
-; LoadSprites:
-;   LDX #$00              ; start at 0
-; LoadSpritesLoop:
-;   LDA Sprites, x        ; load data from address (sprites +  x)
-;   STA $0200, x          ; store into RAM address ($0200 + x)
-;   INX                   ; X = X + 1
-;   CPX #$10              ; Compare X to hex $10, decimal 16
-;   BNE LoadSpritesLoop   ; Branch to LoadSpritesLoop if compare was Not Equal to zero
-;                         ; if compare was equal to 16, keep going down
-
-
 LoadSprites: 
 	LDA #TotalSprites    ;loading number of sprites
 	ASL                  ; Multiply by four 
@@ -218,7 +207,12 @@ exitStarted:
 MovePlayerRight:
 	LDA #%00000000
 	STA PlayerAttr
-	INC PlayerXPos
+	
+	LDA PlayerXPos
+	CLC
+	ADC #$02
+	STA PlayerXPos
+	
 	LDA #$01
 	STA IsWalking
 	RTS
@@ -226,7 +220,12 @@ MovePlayerRight:
 MovePlayerLeft:
 	LDA #%01000000
 	STA PlayerAttr
-	DEC PlayerXPos
+	
+	LDA PlayerXPos
+	SEC
+	SBC #$02
+	STA PlayerXPos
+	
 	LDA #$01
 	STA IsWalking
 	RTS
@@ -288,7 +287,7 @@ PlayerShoot:
 	STA PlayerAttr
 	RTS
 
-JumpCycle:
+JumpCycle:	
 	LDA IsJumping
 	BEQ -
 	LDX PlayerYPos
@@ -296,12 +295,11 @@ JumpCycle:
 	BCS --
 	LDA #$00
 	STA IsJumping 	; stop jump
-	LDA #$01
 	RTS 			; exit
--- 
+--
 	LDA PlayerYPos 	; meanwhile do things
 	SEC
-	SBC #3+JumpingCt
+	SBC #2+JumpingCt
 	STA PlayerYPos
 -
 	INC JumpingCt
@@ -320,19 +318,67 @@ great80:
 	STA PlayerYPos
 	RTS
 
-;   BCS +
-; 	LDA PlayerYPos
-; 	CLC
-; 	ADC #3
-; 	STA PlayerYPos
-; +
-; 	LDA PlayerYPos
-;     CMP #$80
-; 	BCS +	
-; 	LDA #$80
-; 	STA PlayerYPos
-; +	
-; 	RTS
+Enemy:
+
+	LDA EnemyCT
+	CMP #$04
+	BEQ +++
+	INC EnemyCT
+	RTS
++++
+	LDA #$00
+	STA EnemyCT 
+	LDA PlayerXPos
+	CMP EnemyXPos
+	BCS ++
+	LDA #%01000001
+	STA EnemyAttr
+	
+	LDA EnemyXPos
+	SEC
+	SBC #1
+	STA EnemyXPos
+
+	JMP TgEnFr
+
+	RTS
+++
+	LDA #%00000001
+	STA EnemyAttr
+	
+	LDA EnemyXPos
+	CLC
+	ADC #1
+	STA EnemyXPos
+
+	JMP TgEnFr
+
+	RTS
+
+TgEnFr:
+	LDA EnemyTile
+	CMP #$10
+	BEQ E1
+	CMP #$11
+	BEQ E2
+	CMP #$12
+	BEQ E3
+
+
+E1:
+	LDA #$11
+	STA EnemyTile
+	RTS
+
+E2:
+	LDA #$12
+	STA EnemyTile
+	RTS
+
+E3:
+	LDA #$10
+	STA EnemyTile
+	RTS	
 
 ;---------------------------Interupts----------------------
 
@@ -343,6 +389,7 @@ NMI:
 	JSR WalkCycle
 	JSR JumpCycle
 	JSR Gravity
+	JSR Enemy
 +
 	JSR CheckController
 	RTI
@@ -353,7 +400,9 @@ NMI:
 Palettes:
   .db $0f,$27,$17,$0F, $0f,$01,$21,$31, $0f,$06,$16,$26, $0f,$09,$19,$29   ;;background palette
 
-  .db $0f,$05,$0D,$30, $0f,$10,$00,$30, $0f,$11,$0D,$30, $0f,$00,$0D,$30  ;;sprite palette
+  .db $0f,$05,$0D,$30, $0f,$30,$10,$26, $0f,$11,$0D,$30, $0f,$00,$0D,$30  ;;sprite palette
+
+
 
 
 Sprites:;y  til att  x       FlipV FlipH Priority x x x pal pal
